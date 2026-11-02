@@ -1,0 +1,29 @@
+# Lancement : cd deploy && docker compose up -d --build
+# Nginx tourne sur l'hôte (voir nginx/daddia.conf) : les deux services ne sont joignables que via 127.0.0.1.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"], interval: 10s, retries: 5 }
+
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    env_file: ../backend/.env
+    depends_on: { db: { condition: service_healthy } }
+    ports: ["127.0.0.1:${BACKEND_PORT:-8000}:8000"]   # joignable uniquement depuis l'hôte (Nginx)
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        NEXT_PUBLIC_CAL_URL: ${NEXT_PUBLIC_CAL_URL:-https://cal.com/daddia/decouverte}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://daddia.fr}
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-/api}
+    restart: unless-stopped
+    ports: ["127.0.0.1:${FRONTEND_PORT:-3000}:3000"]
+
+volumes:
+  pgdata:
